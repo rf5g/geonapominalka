@@ -22,10 +22,7 @@ import com.google.android.gms.location.LocationServices
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.ITileSource
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -45,19 +42,7 @@ class MainActivity : AppCompatActivity() {
     private val markerByReminderId = HashMap<Long, Marker>()
     private var currentTileSourceIndex = 0
 
-    // Бесплатные тайл-источники без ключа: обычная OSM-карта и спутник (Esri, публичный доступ)
-    private val esriSatellite: ITileSource = object : XYTileSource(
-        "EsriWorldImagery", 0, 19, 256, ".jpg",
-        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
-    ) {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val zoom = MapTileIndex.getZoom(pMapTileIndex)
-            val x = MapTileIndex.getX(pMapTileIndex)
-            val y = MapTileIndex.getY(pMapTileIndex)
-            return "$baseUrl$zoom/$y/$x"
-        }
-    }
-    private val tileSources: List<ITileSource> by lazy { listOf(TileSourceFactory.MAPNIK, esriSatellite) }
+    private val tileSources: List<ITileSource> by lazy { com.example.geonapominalka.util.TileSources.all }
 
     private val requestPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -102,7 +87,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupMap() {
         map = binding.mapView
-        map.setTileSource(TileSourceFactory.MAPNIK)
+        map.setTileSource(com.example.geonapominalka.util.TileSources.cartoLight)
         map.setMultiTouchControls(true)
         map.controller.setZoom(14.0)
         map.controller.setCenter(GeoPoint(55.7558, 37.6173)) // старт по умолчанию, сместится к геолокации

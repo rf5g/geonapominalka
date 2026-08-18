@@ -7,7 +7,6 @@ import com.example.geonapominalka.databinding.ActivityMapPickerBinding
 import com.example.geonapominalka.util.Constants
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -33,7 +32,7 @@ class MapPickerActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         map = binding.mapView
-        map.setTileSource(TileSourceFactory.MAPNIK)
+        map.setTileSource(com.example.geonapominalka.util.TileSources.cartoLight)
         map.setMultiTouchControls(true)
 
         val initialLat = intent.getDoubleExtra(Constants.EXTRA_INITIAL_LAT, 0.0)
