@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Геонапоминалка</string>
+
+    <string name="notification_channel_name">Гео-напоминания</string>
+    <string name="notification_channel_description">Уведомления о входе в зону напоминания</string>
+    <string name="foreground_notification_title">Геонапоминалка активна</string>
+
+    <string name="title_task_edit">Редактирование задачи</string>
+    <string name="title_task_create">Новое напоминание</string>
+    <string name="title_task_list">Менеджер задач</string>
+    <string name="title_settings">Настройки</string>
+    <string name="title_map_picker">Выбор точки на карте</string>
+
+    <string name="cd_menu">Меню</string>
+    <string name="cd_map_type">Тип карты</string>
+    <string name="cd_zoom_in">Приблизить</string>
+    <string name="cd_zoom_out">Отдалить</string>
+    <string name="cd_my_location">Моё местоположение</string>
+
+    <string name="hint_search_address">Поиск адреса…</string>
+    <string name="hint_name">Имя</string>
+    <string name="hint_description">Описание</string>
+    <string name="hint_radius">Радиус (м)</string>
+
+    <string name="dialog_create_title">Новое напоминание</string>
+    <string name="dialog_create_message">Координаты: %1$.5f, %2$.5f</string>
+    <string name="dialog_delete_message">Удалить задачу?</string>
+    <string name="dialog_reset_message">Удалить все задачи? Действие необратимо.</string>
+
+    <string name="action_remind_here">Напомнить здесь</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_yes">Да</string>
+    <string name="action_no">Нет</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_edit">Редактировать</string>
+    <string name="action_pick_on_map">Выбрать на карте</string>
+    <string name="action_confirm_point">Подтвердить точку</string>
+    <string name="action_add_task">Новая задача</string>
+    <string name="action_done">Выполнено</string>
+    <string name="action_snooze">Отложить</string>
+    <string name="action_choose_sound">Выбрать звук уведомления</string>
+    <string name="action_reset_data">Сбросить все данные</string>
+
+    <string name="label_coordinates">Координаты</string>
+    <string name="coordinates_format">%1$.5f, %2$.5f</string>
+    <string name="label_show_done">Показывать выполненные</string>
+    <string name="label_theme">Тема</string>
+    <string name="label_interval">Частота проверки местоположения</string>
+    <string name="label_vibration">Вибрация</string>
+
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_system">Системная</string>
+
+    <string name="interval_30s">30 секунд</string>
+    <string name="interval_60s">1 минута</string>
+    <string name="interval_300s">5 минут</string>
+
+    <string name="marker_radius_snippet">Радиус: %1$d м</string>
+
+    <string name="error_name_required">Укажите имя</string>
+    <string name="msg_location_required">Для работы приложения нужен доступ к геолокации</string>
+    <string name="msg_address_not_found">Адрес не найден</string>
+    <string name="msg_no_tasks">Нет задач</string>
+
+    <string name="nav_task_manager">Менеджер задач</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_exit">Выход</string>
+</resources>

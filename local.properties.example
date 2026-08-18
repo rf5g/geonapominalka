@@ -1,0 +1,6 @@
+# Скопируйте этот файл в local.properties (в корне проекта).
+# local.properties НЕ должен попадать в систему контроля версий.
+#
+# Карта в проекте — OSMDroid (OpenStreetMap), API-ключ НЕ требуется.
+
+sdk.dir=/path/to/Android/sdk

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1E6F5C</color>
+    <color name="primary_dark">#134E3E</color>
+    <color name="accent">#F2A104</color>
+    <color name="background_light">#FFFFFF</color>
+    <color name="background_dark">#121212</color>
+    <color name="search_field_bg">#F1F1F1</color>
+</resources>
