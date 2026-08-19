@@ -124,8 +124,8 @@ class MainActivity : AppCompatActivity() {
             val arrow = drawableToBitmap(ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_location_arrow)!!)
             setPersonIcon(dot)
             setPersonAnchor(0.5f, 0.5f)
-            setDirectionArrowIcon(arrow)
-            setDirectionArrowAnchor(0.5f, 0.5f)
+            setDirectionIcon(arrow)
+            setDirectionAnchor(0.5f, 0.5f)
         }
 
         viewModel.mapType.observe(this) { index -> applyMapStyle(TileSources.MapStyle.fromIndex(index)) }
