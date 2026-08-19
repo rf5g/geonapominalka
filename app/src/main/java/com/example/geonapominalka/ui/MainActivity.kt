@@ -17,15 +17,17 @@ import com.example.geonapominalka.R
 import com.example.geonapominalka.data.Reminder
 import com.example.geonapominalka.databinding.ActivityMainBinding
 import com.example.geonapominalka.util.Constants
+import com.example.geonapominalka.util.TileSources
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.tileprovider.tilesource.ITileSource
+import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.TilesOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.util.Locale
@@ -40,9 +42,13 @@ class MainActivity : AppCompatActivity() {
 
     // reminder.id -> Marker, чтобы удалять/сопоставлять при клике
     private val markerByReminderId = HashMap<Long, Marker>()
-    private var currentTileSourceIndex = 0
+    private var currentStyle = TileSources.MapStyle.LIGHT
 
-    private val tileSources: List<ITileSource> by lazy { com.example.geonapominalka.util.TileSources.all }
+    // Оверлей подписей для гибридного режима (снимок + названия/дороги поверх)
+    private var labelsOverlay: TilesOverlay? = null
+
+    // Маркер результата поиска адреса — один на экран, обновляется при новом поиске
+    private var searchMarker: Marker? = null
 
     private val requestPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -87,7 +93,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupMap() {
         map = binding.mapView
-        map.setTileSource(com.example.geonapominalka.util.TileSources.cartoLight)
         map.setMultiTouchControls(true)
         map.controller.setZoom(14.0)
         map.controller.setCenter(GeoPoint(55.7558, 37.6173)) // старт по умолчанию, сместится к геолокации
@@ -105,10 +110,7 @@ class MainActivity : AppCompatActivity() {
 
         myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map)
 
-        viewModel.mapType.observe(this) { type ->
-            currentTileSourceIndex = type.coerceIn(0, tileSources.size - 1)
-            map.setTileSource(tileSources[currentTileSourceIndex])
-        }
+        viewModel.mapType.observe(this) { index -> applyMapStyle(TileSources.MapStyle.fromIndex(index)) }
 
         viewModel.activeReminders.observe(this) { reminders -> renderMarkers(reminders) }
     }
@@ -126,10 +128,43 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_task_manager -> startActivity(Intent(this, TaskListActivity::class.java))
                 R.id.nav_settings -> startActivity(Intent(this, SettingsActivity::class.java))
                 R.id.nav_exit -> finishAffinity()
+                R.id.nav_force_close -> confirmForceClose()
             }
             binding.drawerLayout.closeDrawers()
             true
         }
+    }
+
+    /**
+     * Полное закрытие приложения (в отличие от обычного "Выхода"): останавливает
+     * foreground-сервис геолокации явно, независимо от количества активных задач,
+     * и завершает процесс, чтобы приложение не оставалось висеть в фоне, когда
+     * это не нужно пользователю.
+     */
+    private fun confirmForceClose() {
+        val hasActiveTasks = !viewModel.activeReminders.value.isNullOrEmpty()
+        val message = if (hasActiveTasks) {
+            R.string.dialog_force_close_message
+        } else {
+            R.string.dialog_force_close_message_no_tasks
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setMessage(message)
+            .setPositiveButton(R.string.action_yes) { dialog, _ ->
+                dialog.dismiss()
+                forceCloseApp()
+            }
+            .setNegativeButton(R.string.action_no) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun forceCloseApp() {
+        stopService(Intent(this, com.example.geonapominalka.service.LocationForegroundService::class.java))
+        androidx.core.app.NotificationManagerCompat.from(this).cancelAll()
+        finishAffinity()
+        // killProcess гарантирует, что процесс (и все его корутины/сервисы) не останется
+        // висеть в фоне после явного запроса пользователя на полное закрытие.
+        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     private fun setupControls() {
@@ -144,10 +179,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Переключает стиль карты по кругу и сохраняет выбор в настройках (синхронизировано с SettingsActivity). */
     private fun toggleMapType() {
-        currentTileSourceIndex = (currentTileSourceIndex + 1) % tileSources.size
-        map.setTileSource(tileSources[currentTileSourceIndex])
-        viewModel.setMapType(currentTileSourceIndex)
+        val styles = TileSources.MapStyle.entries
+        val next = styles[(currentStyle.ordinal + 1) % styles.size]
+        applyMapStyle(next)
+        viewModel.setMapType(next.ordinal)
+    }
+
+    /**
+     * Применяет выбранный стиль карты. Для HYBRID отдельно накладывает полупрозрачный
+     * слой подписей (labelsOverlay) поверх спутникового снимка — сам спутниковый
+     * провайдер (Esri) хабов подписей не даёт, поэтому склеиваем два источника тайлов.
+     */
+    private fun applyMapStyle(style: TileSources.MapStyle) {
+        currentStyle = style
+        map.setTileSource(style.tileSource)
+
+        labelsOverlay?.let { map.overlays.remove(it) }
+        labelsOverlay = null
+
+        if (style.isHybrid) {
+            val provider = MapTileProviderBasic(this, TileSources.labelsOverlay)
+            val overlay = TilesOverlay(provider, this).apply { loadingBackgroundColor = android.graphics.Color.TRANSPARENT }
+            // Вставляем сразу после базового слоя карты (индекс 0), чтобы подписи были
+            // выше снимка, но ниже маркеров и служебных оверлеев (моё местоположение и т.д.)
+            map.overlays.add(0, overlay)
+            labelsOverlay = overlay
+        }
+        map.invalidate()
     }
 
     private fun searchAddress(query: String) {
@@ -158,14 +218,31 @@ class MainActivity : AppCompatActivity() {
             val results = geocoder.getFromLocationName(query, 1)
             val first = results?.firstOrNull()
             if (first != null) {
-                map.controller.animateTo(GeoPoint(first.latitude, first.longitude))
-                map.controller.setZoom(15.0)
+                val point = GeoPoint(first.latitude, first.longitude)
+                map.controller.animateTo(point)
+                map.controller.setZoom(16.0)
+                showSearchResultMarker(point, first.getAddressLine(0) ?: query)
             } else {
                 Toast.makeText(this, R.string.msg_address_not_found, Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, R.string.msg_address_not_found, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** Булавка результата поиска адреса — отдельная от булавок задач (синий цвет). */
+    private fun showSearchResultMarker(point: GeoPoint, title: String) {
+        searchMarker?.let { map.overlays.remove(it) }
+        val marker = Marker(map).apply {
+            position = point
+            this.title = title
+            icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_marker_pin_search)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        }
+        map.overlays.add(marker)
+        searchMarker = marker
+        marker.showInfoWindow()
+        map.invalidate()
     }
 
     /** п.1.2 ТЗ: долгое нажатие открывает диалог с кнопкой "Напомнить здесь". */
@@ -213,6 +290,9 @@ class MainActivity : AppCompatActivity() {
                     position = GeoPoint(reminder.latitude, reminder.longitude)
                     title = reminder.name
                     snippet = getString(R.string.marker_radius_snippet, reminder.radius)
+                    // Контрастная красная булавка вместо блёклой стандартной иконки —
+                    // штатный маркер osmdroid плохо виден на светлых стилях карты.
+                    icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_marker_pin)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     setOnMarkerClickListener { _, _ -> onMarkerClicked(reminder.id); true }
                 }

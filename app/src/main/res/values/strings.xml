@@ -49,6 +49,7 @@
     <string name="label_theme">Тема</string>
     <string name="label_interval">Частота проверки местоположения</string>
     <string name="label_vibration">Вибрация</string>
+    <string name="label_map_style">Стиль карты</string>
 
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>
@@ -56,7 +57,16 @@
 
     <string name="interval_30s">30 секунд</string>
     <string name="interval_60s">1 минута</string>
+    <string name="interval_180s">3 минуты</string>
     <string name="interval_300s">5 минут</string>
+    <string name="interval_600s">10 минут</string>
+    <string name="interval_1200s">20 минут</string>
+
+    <string name="map_style_light">Обычная (светлая)</string>
+    <string name="map_style_detailed">Детальная (с номерами домов)</string>
+    <string name="map_style_voyager">Цветная (Voyager)</string>
+    <string name="map_style_satellite">Спутник</string>
+    <string name="map_style_hybrid">Гибрид (спутник + подписи)</string>
 
     <string name="marker_radius_snippet">Радиус: %1$d м</string>
 
@@ -68,4 +78,7 @@
     <string name="nav_task_manager">Менеджер задач</string>
     <string name="nav_settings">Настройки</string>
     <string name="nav_exit">Выход</string>
+    <string name="nav_force_close">Закрыть совсем</string>
+    <string name="dialog_force_close_message">Приложение полностью закроется, сервис геолокации будет остановлен. Уведомления по активным задачам не придут, пока вы не откроете приложение снова. Продолжить?</string>
+    <string name="dialog_force_close_message_no_tasks">Приложение и все его процессы будут полностью завершены. Продолжить?</string>
 </resources>

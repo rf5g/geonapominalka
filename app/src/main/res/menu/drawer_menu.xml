@@ -12,4 +12,8 @@
         android:id="@+id/nav_exit"
         android:icon="@drawable/ic_delete"
         android:title="@string/nav_exit" />
+    <item
+        android:id="@+id/nav_force_close"
+        android:icon="@drawable/ic_power"
+        android:title="@string/nav_force_close" />
 </menu>

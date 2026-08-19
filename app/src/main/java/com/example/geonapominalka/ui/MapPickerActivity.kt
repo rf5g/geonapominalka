@@ -66,7 +66,11 @@ class MapPickerActivity : AppCompatActivity() {
 
     private fun placeMarker(point: GeoPoint) {
         pickedMarker?.let { map.overlays.remove(it) }
-        val marker = Marker(map).apply { position = point }
+        val marker = Marker(map).apply {
+            position = point
+            icon = androidx.core.content.ContextCompat.getDrawable(this@MapPickerActivity, com.example.geonapominalka.R.drawable.ic_marker_pin)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        }
         map.overlays.add(marker)
         pickedMarker = marker
         pickedLatLng = point

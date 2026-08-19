@@ -80,18 +80,24 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toTopOf="@id/searchField" />
 
-        <!-- Строка поиска адреса на всю ширину снизу -->
+        <!-- Поле поиска намеренно всегда светлое (белый фон, тёмный текст) — оно лежит
+             поверх карты и должно одинаково хорошо читаться и в светлой, и в тёмной теме. -->
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/searchField"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_margin="12dp"
+            android:layout_marginBottom="24dp"
             android:background="@drawable/bg_search_field"
+            android:elevation="4dp"
             android:hint="@string/hint_search_address"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:padding="14dp"
             android:singleLine="true"
+            android:textColor="#212121"
+            android:textColorHint="#757575"
+            android:textCursorDrawable="@null"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />

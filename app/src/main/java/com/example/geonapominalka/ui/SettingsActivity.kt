@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.geonapominalka.GeoApp
 import com.example.geonapominalka.R
 import com.example.geonapominalka.databinding.ActivitySettingsBinding
+import com.example.geonapominalka.util.TileSources
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,7 @@ class SettingsActivity : AppCompatActivity() {
 
         setupTheme()
         setupInterval()
+        setupMapStyle()
         setupVibration()
         setupSound()
         setupReset()
@@ -66,7 +68,10 @@ class SettingsActivity : AppCompatActivity() {
             app.settingsRepository.intervalSeconds.collect { seconds ->
                 val id = when (seconds) {
                     30 -> R.id.radioInterval30
+                    180 -> R.id.radioInterval180
                     300 -> R.id.radioInterval300
+                    600 -> R.id.radioInterval600
+                    1200 -> R.id.radioInterval1200
                     else -> R.id.radioInterval60
                 }
                 if (binding.intervalGroup.checkedRadioButtonId != id) binding.intervalGroup.check(id)
@@ -75,10 +80,41 @@ class SettingsActivity : AppCompatActivity() {
         binding.intervalGroup.setOnCheckedChangeListener { _, checkedId ->
             val seconds = when (checkedId) {
                 R.id.radioInterval30 -> 30
+                R.id.radioInterval180 -> 180
                 R.id.radioInterval300 -> 300
+                R.id.radioInterval600 -> 600
+                R.id.radioInterval1200 -> 1200
                 else -> 60
             }
             lifecycleScope.launch { app.settingsRepository.setIntervalSeconds(seconds) }
+        }
+    }
+
+    /**
+     * Стиль карты (п.1.7 ТЗ, "выбор провайдера карт" — реализовано как выбор стиля/слоя,
+     * т.к. у бесплатных провайдеров без ключа нет отдельного переключателя "провайдер").
+     * Значение хранится тем же ключом mapType, что и переключатель на самой карте —
+     * они синхронизированы через один и тот же Flow в SettingsRepository.
+     */
+    private fun setupMapStyle() {
+        val idByStyle = mapOf(
+            TileSources.MapStyle.LIGHT to R.id.radioStyleLight,
+            TileSources.MapStyle.DETAILED to R.id.radioStyleDetailed,
+            TileSources.MapStyle.VOYAGER to R.id.radioStyleVoyager,
+            TileSources.MapStyle.SATELLITE to R.id.radioStyleSatellite,
+            TileSources.MapStyle.HYBRID to R.id.radioStyleHybrid
+        )
+        val styleById = idByStyle.entries.associate { (style, id) -> id to style }
+
+        lifecycleScope.launch {
+            app.settingsRepository.mapType.collect { index ->
+                val id = idByStyle.getValue(TileSources.MapStyle.fromIndex(index))
+                if (binding.mapStyleGroup.checkedRadioButtonId != id) binding.mapStyleGroup.check(id)
+            }
+        }
+        binding.mapStyleGroup.setOnCheckedChangeListener { _, checkedId ->
+            val style = styleById[checkedId] ?: return@setOnCheckedChangeListener
+            lifecycleScope.launch { app.settingsRepository.setMapType(style.ordinal) }
         }
     }
 

@@ -37,7 +37,28 @@
             android:layout_height="wrap_content">
             <RadioButton android:id="@+id/radioInterval30" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_30s" />
             <RadioButton android:id="@+id/radioInterval60" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_60s" />
+            <RadioButton android:id="@+id/radioInterval180" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_180s" />
             <RadioButton android:id="@+id/radioInterval300" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_300s" />
+            <RadioButton android:id="@+id/radioInterval600" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_600s" />
+            <RadioButton android:id="@+id/radioInterval1200" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/interval_1200s" />
+        </RadioGroup>
+
+        <TextView
+            style="@style/TextAppearance.Material3.TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/label_map_style" />
+
+        <RadioGroup
+            android:id="@+id/mapStyleGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/radioStyleLight" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/map_style_light" />
+            <RadioButton android:id="@+id/radioStyleDetailed" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/map_style_detailed" />
+            <RadioButton android:id="@+id/radioStyleVoyager" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/map_style_voyager" />
+            <RadioButton android:id="@+id/radioStyleSatellite" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/map_style_satellite" />
+            <RadioButton android:id="@+id/radioStyleHybrid" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/map_style_hybrid" />
         </RadioGroup>
 
         <com.google.android.material.materialswitch.MaterialSwitch
