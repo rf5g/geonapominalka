@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp" android:height="32dp" android:viewportWidth="32" android:viewportHeight="32">
+    <!-- Белая обводка -->
+    <path android:fillColor="#FFFFFF" android:pathData="M16,2L4,28l12,-6 12,6z"/>
+    <!-- Стрелка направления движения -->
+    <path android:fillColor="#E65100" android:pathData="M16,6L7,25l9,-4.5 9,4.5z"/>
+</vector>

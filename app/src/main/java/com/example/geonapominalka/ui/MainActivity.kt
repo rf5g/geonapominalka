@@ -3,6 +3,10 @@ package com.example.geonapominalka.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.location.Geocoder
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import com.example.geonapominalka.GeoApp
 import com.example.geonapominalka.R
 import com.example.geonapominalka.data.Reminder
@@ -20,6 +25,10 @@ import com.example.geonapominalka.util.Constants
 import com.example.geonapominalka.util.TileSources
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -50,6 +59,10 @@ class MainActivity : AppCompatActivity() {
     // Маркер результата поиска адреса — один на экран, обновляется при новом поиске
     private var searchMarker: Marker? = null
 
+    // Чтобы не пересобрать пользователя на карту повторно после первого раза
+    // (например, если он сам куда-то проскроллил карту)
+    private var hasCenteredOnUser = false
+
     private val requestPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -65,10 +78,6 @@ class MainActivity : AppCompatActivity() {
     private val requestBackgroundPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* фон - опционально, приложение продолжит работать в активном режиме */ }
-
-    private val requestNotificationPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Configuration.getInstance().load(this, androidx.preference.PreferenceManager.getDefaultSharedPreferences(this))
@@ -88,14 +97,14 @@ class MainActivity : AppCompatActivity() {
         setupToolbarAndDrawer()
         setupControls()
 
-        requestRuntimePermissions()
+        requestAllPermissionsIfNeeded()
     }
 
     private fun setupMap() {
         map = binding.mapView
         map.setMultiTouchControls(true)
         map.controller.setZoom(14.0)
-        map.controller.setCenter(GeoPoint(55.7558, 37.6173)) // старт по умолчанию, сместится к геолокации
+        map.controller.setCenter(GeoPoint(55.7558, 37.6173)) // запасной центр, если геопозиция недоступна — сместится на неё сразу, как получим координаты
 
         // Долгий тап по карте -> создание напоминания (п.1.2 ТЗ)
         val mapEventsReceiver = object : MapEventsReceiver {
@@ -108,11 +117,31 @@ class MainActivity : AppCompatActivity() {
         }
         map.overlays.add(MapEventsOverlay(mapEventsReceiver))
 
-        myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map)
+        // Курсор "моё местоположение" в цвете E65100 вместо стандартного синего —
+        // штатные иконки заменены на кастомные точку/стрелку.
+        myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map).apply {
+            val dot = drawableToBitmap(ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_location_dot)!!)
+            val arrow = drawableToBitmap(ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_location_arrow)!!)
+            setPersonIcon(dot)
+            setPersonAnchor(0.5f, 0.5f)
+            setDirectionArrowIcon(arrow)
+            setDirectionArrowAnchor(0.5f, 0.5f)
+        }
 
         viewModel.mapType.observe(this) { index -> applyMapStyle(TileSources.MapStyle.fromIndex(index)) }
 
         viewModel.activeReminders.observe(this) { reminders -> renderMarkers(reminders) }
+    }
+
+    private fun drawableToBitmap(drawable: Drawable): Bitmap {
+        if (drawable is BitmapDrawable) return drawable.bitmap
+        val width = drawable.intrinsicWidth.coerceAtLeast(1)
+        val height = drawable.intrinsicHeight.coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
     }
 
     private fun setupToolbarAndDrawer() {
@@ -127,6 +156,7 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.nav_task_manager -> startActivity(Intent(this, TaskListActivity::class.java))
                 R.id.nav_settings -> startActivity(Intent(this, SettingsActivity::class.java))
+                R.id.nav_log -> startActivity(Intent(this, LogActivity::class.java))
                 R.id.nav_exit -> finishAffinity()
                 R.id.nav_force_close -> confirmForceClose()
             }
@@ -190,7 +220,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * Применяет выбранный стиль карты. Для HYBRID отдельно накладывает полупрозрачный
      * слой подписей (labelsOverlay) поверх спутникового снимка — сам спутниковый
-     * провайдер (Esri) хабов подписей не даёт, поэтому склеиваем два источника тайлов.
+     * провайдер (Esri) слоя подписей не даёт, поэтому склеиваем два источника тайлов.
      */
     private fun applyMapStyle(style: TileSources.MapStyle) {
         currentStyle = style
@@ -210,12 +240,40 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
+    /**
+     * Поиск адреса с приоритетом по текущему местоположению пользователя: строим
+     * bounding box вокруг последней известной позиции и передаём его в Geocoder,
+     * чтобы "улица Ленина" в Кирове не подменялась той же улицей в другом регионе.
+     * Если геолокация недоступна или в области ничего не нашлось — ищем без ограничения.
+     */
     private fun searchAddress(query: String) {
         if (query.isBlank()) return
-        try {
-            @Suppress("DEPRECATION")
-            val geocoder = Geocoder(this, Locale.getDefault())
-            val results = geocoder.getFromLocationName(query, 1)
+
+        lifecycleScope.launch {
+            val lastLocation = try {
+                if (hasFineLocationPermission()) fusedClient.lastLocation.await() else null
+            } catch (e: Exception) {
+                null
+            }
+
+            val results = withContext(Dispatchers.IO) {
+                @Suppress("DEPRECATION")
+                val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
+                try {
+                    val nearby = lastLocation?.let { loc ->
+                        val boxDegrees = 1.0 // ~111 км — достаточно для приоритета "своего" региона
+                        geocoder.getFromLocationName(
+                            query, 5,
+                            loc.latitude - boxDegrees, loc.longitude - boxDegrees,
+                            loc.latitude + boxDegrees, loc.longitude + boxDegrees
+                        )
+                    }
+                    if (!nearby.isNullOrEmpty()) nearby else geocoder.getFromLocationName(query, 1)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
             val first = results?.firstOrNull()
             if (first != null) {
                 val point = GeoPoint(first.latitude, first.longitude)
@@ -223,10 +281,8 @@ class MainActivity : AppCompatActivity() {
                 map.controller.setZoom(16.0)
                 showSearchResultMarker(point, first.getAddressLine(0) ?: query)
             } else {
-                Toast.makeText(this, R.string.msg_address_not_found, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, R.string.msg_address_not_found, Toast.LENGTH_SHORT).show()
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, R.string.msg_address_not_found, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -308,7 +364,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun moveToMyLocation() {
         if (!hasFineLocationPermission()) {
-            requestRuntimePermissions()
+            requestAllPermissionsIfNeeded()
             return
         }
         fusedClient.lastLocation.addOnSuccessListener { location ->
@@ -324,32 +380,75 @@ class MainActivity : AppCompatActivity() {
             myLocationOverlay.enableMyLocation()
             map.overlays.add(myLocationOverlay)
         }
+        centerOnUserLocationIfNeeded()
+    }
+
+    /**
+     * Старт карты на позиции пользователя вместо дефолтных координат: как только
+     * известна последняя геопозиция, один раз перецентровываем карту на неё.
+     */
+    private fun centerOnUserLocationIfNeeded() {
+        if (hasCenteredOnUser || !hasFineLocationPermission()) return
+        fusedClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                hasCenteredOnUser = true
+                map.controller.setCenter(GeoPoint(location.latitude, location.longitude))
+                map.controller.setZoom(16.0)
+            }
+        }
     }
 
     private fun hasFineLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun hasBackgroundLocationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /**
+     * При первом запуске сразу объясняем, зачем нужны все разрешения, и запрашиваем их
+     * одним заходом (геолокация + уведомления сразу, фоновая геолокация — следующим
+     * системным диалогом сразу после, так требует Android на 10+ — одновременно её
+     * запросить нельзя). При повторных запусках, если всё уже выдано, ничего не спрашиваем.
+     */
+    private fun requestAllPermissionsIfNeeded() {
+        val allGranted = hasFineLocationPermission() && hasBackgroundLocationPermission() && hasNotificationPermission()
+        if (allGranted) {
+            enableMyLocationLayer()
+            return
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dialog_permissions_title)
+            .setMessage(R.string.dialog_permissions_message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.action_continue) { dialog, _ ->
+                dialog.dismiss()
+                requestRuntimePermissions()
+            }
+            .show()
+    }
+
     private fun requestRuntimePermissions() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
-        requestPermissions.launch(permissions.toTypedArray())
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+        requestPermissions.launch(permissions.toTypedArray())
     }
 
     private fun requestBackgroundPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val granted = ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!granted) {
-                requestBackgroundPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            }
+        if (!hasBackgroundLocationPermission()) {
+            requestBackgroundPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
     }
 

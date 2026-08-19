@@ -13,15 +13,17 @@ import org.osmdroid.util.MapTileIndex
  * User-Agent.
  *
  * У CARTO нет отдельных переключаемых слоёв (типа "номера домов вкл/выкл") — это
- * готовые растровые стили. "Light" (Positron) — минималистичный, без номеров домов.
- * Чтобы получить детализацию как в классическом OSM (в т.ч. номера домов на крупном
- * зуме), используется зеркало официального стиля "OSM Standard" на серверах
- * Викимедиа (maps.wikimedia.org) — тоже бесплатно, без ключа, и без блокировки
- * мобильных приложений, в отличие от tile.openstreetmap.org.
+ * готовые растровые стили, и ни один из них номера домов не показывает вообще
+ * (упрощённые базовые карты для приложений так устроены). Пробовали зеркало
+ * классического OSM Standard на серверах Wikimedia (maps.wikimedia.org) — оно тоже
+ * оказалось нестабильным (тайлы не грузятся), поэтому убрано из списка стилей.
+ * Если понадобятся номера домов — единственный практичный вариант это платный
+ * тайл-провайдер с ключом (Mapbox/MapTiler/Stadia Maps — у всех есть щедрый бесплатный
+ * тариф без карты, в отличие от Google).
  */
 object TileSources {
 
-    /** Минималистичная светлая схема CARTO Positron — быстрая, но без номеров домов. */
+    /** Минималистичная светлая схема CARTO Positron — быстрая, без номеров домов. */
     val cartoLight: ITileSource = XYTileSource(
         "CartoLight", 0, 19, 256, ".png",
         arrayOf(
@@ -41,12 +43,6 @@ object TileSources {
             "https://c.basemaps.cartocdn.com/rastertiles/voyager/",
             "https://d.basemaps.cartocdn.com/rastertiles/voyager/"
         )
-    )
-
-    /** Классический стиль OSM Standard (номера домов видны при увеличении), зеркало Wikimedia. */
-    val osmStandard: ITileSource = XYTileSource(
-        "WikimediaOsm", 0, 19, 256, ".png",
-        arrayOf("https://maps.wikimedia.org/osm-intl/")
     )
 
     val esriSatellite: ITileSource = object : XYTileSource(
@@ -78,7 +74,6 @@ object TileSources {
     /** Порядок пунктов в переключателе на карте и в настройках — должен совпадать в обоих местах. */
     enum class MapStyle(val tileSource: ITileSource, val isHybrid: Boolean = false) {
         LIGHT(cartoLight),
-        DETAILED(osmStandard),
         VOYAGER(cartoVoyager),
         SATELLITE(esriSatellite),
         HYBRID(esriSatellite, isHybrid = true);

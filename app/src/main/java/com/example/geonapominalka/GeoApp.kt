@@ -15,6 +15,7 @@ import com.example.geonapominalka.data.ReminderRepository
 import com.example.geonapominalka.data.SettingsRepository
 import com.example.geonapominalka.service.LocationForegroundService
 import com.example.geonapominalka.util.Constants
+import com.example.geonapominalka.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -95,11 +96,13 @@ class GeoApp : Application() {
     }
 
     private fun startLocationService() {
+        AppLogger.log("GeoApp", "Активных задач > 0 — запускаю foreground-сервис геолокации")
         val intent = Intent(this, LocationForegroundService::class.java)
         ContextCompat.startForegroundService(this, intent)
     }
 
     private fun stopLocationService() {
+        AppLogger.log("GeoApp", "Активных задач нет — останавливаю сервис геолокации")
         stopService(Intent(this, LocationForegroundService::class.java))
     }
 

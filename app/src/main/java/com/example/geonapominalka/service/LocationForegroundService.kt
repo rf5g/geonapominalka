@@ -16,6 +16,7 @@ import com.example.geonapominalka.receiver.NotificationActionReceiver
 import com.example.geonapominalka.ui.MainActivity
 import com.example.geonapominalka.util.Constants
 import com.example.geonapominalka.util.LocationUtils
+import com.example.geonapominalka.util.AppLogger
 import com.google.android.gms.location.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
@@ -44,6 +45,7 @@ class LocationForegroundService : Service() {
         startForegroundWithNotification()
         serviceScope.launch {
             val intervalSeconds = app.settingsRepository.currentIntervalSeconds()
+            AppLogger.log("Location", "Сервис запущен, интервал опроса: $intervalSeconds сек")
             startLocationUpdates(intervalSeconds)
         }
         // START_STICKY: система пересоздаст сервис, если он был убит,
@@ -86,6 +88,12 @@ class LocationForegroundService : Service() {
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val location = result.lastLocation ?: return
+                AppLogger.log(
+                    "Location",
+                    "Получены координаты: %.5f, %.5f (точность %.0fм)".format(
+                        location.latitude, location.longitude, location.accuracy
+                    )
+                )
                 serviceScope.launch { checkGeofences(location.latitude, location.longitude) }
             }
         }
@@ -108,11 +116,19 @@ class LocationForegroundService : Service() {
 
             if (inRadius && !reminder.isInsideZone) {
                 // Только что вошли в зону
+                AppLogger.log(
+                    "Geofence",
+                    "Вход в зону «${reminder.name}»: расстояние ${distance.toInt()}м, радиус ${reminder.radius}м"
+                )
                 maybeNotify(reminder)
             } else if (!inRadius && reminder.isInsideZone) {
                 // Вышли из зоны (с гистерезисом) — сбрасываем флаг, чтобы при повторном
                 // входе уведомление сработало снова.
                 if (distance > reminder.radius + Constants.EXIT_HYSTERESIS_METERS) {
+                    AppLogger.log(
+                        "Geofence",
+                        "Выход из зоны «${reminder.name}»: расстояние ${distance.toInt()}м"
+                    )
                     app.reminderRepository.setZoneState(reminder.id, false)
                 }
             } else if (inRadius && reminder.isInsideZone) {
@@ -127,6 +143,7 @@ class LocationForegroundService : Service() {
         val cooldownPassed = now - reminder.lastNotificationTime >= Constants.NOTIFICATION_COOLDOWN_MS
         if (!reminder.isInsideZone || cooldownPassed) {
             if (cooldownPassed) {
+                AppLogger.log("Geofence", "Уведомление отправлено для «${reminder.name}»")
                 showReminderNotification(reminder)
                 app.reminderRepository.recordNotification(reminder.id, now, true)
             } else {
@@ -190,6 +207,7 @@ class LocationForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        AppLogger.log("Location", "Сервис остановлен, опрос геолокации прекращён")
         locationCallback?.let { fusedClient.removeLocationUpdates(it) }
         serviceScope.cancel()
     }

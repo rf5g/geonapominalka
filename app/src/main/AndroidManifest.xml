@@ -52,6 +52,11 @@
             android:exported="false"
             android:label="@string/title_map_picker" />
 
+        <activity
+            android:name=".ui.LogActivity"
+            android:exported="false"
+            android:label="@string/title_log" />
+
         <!-- Foreground-сервис геолокации. Запускается только когда есть активные задачи -->
         <service
             android:name=".service.LocationForegroundService"

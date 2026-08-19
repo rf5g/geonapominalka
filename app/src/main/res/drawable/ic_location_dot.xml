@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp" android:height="32dp" android:viewportWidth="32" android:viewportHeight="32">
+    <!-- Белая обводка для контраста -->
+    <path android:fillColor="#FFFFFF" android:pathData="M16,4c-6.63,0 -12,5.37 -12,12s5.37,12 12,12 12,-5.37 12,-12S22.63,4 16,4z"/>
+    <!-- Основной цвет курсора -->
+    <path android:fillColor="#E65100" android:pathData="M16,7c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9S20.97,7 16,7z"/>
+</vector>

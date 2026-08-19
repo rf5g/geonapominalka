@@ -9,6 +9,10 @@
         android:icon="@drawable/ic_layers"
         android:title="@string/nav_settings" />
     <item
+        android:id="@+id/nav_log"
+        android:icon="@drawable/ic_console"
+        android:title="@string/nav_log" />
+    <item
         android:id="@+id/nav_exit"
         android:icon="@drawable/ic_delete"
         android:title="@string/nav_exit" />

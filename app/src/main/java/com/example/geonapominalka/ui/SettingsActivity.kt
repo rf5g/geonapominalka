@@ -99,7 +99,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupMapStyle() {
         val idByStyle = mapOf(
             TileSources.MapStyle.LIGHT to R.id.radioStyleLight,
-            TileSources.MapStyle.DETAILED to R.id.radioStyleDetailed,
             TileSources.MapStyle.VOYAGER to R.id.radioStyleVoyager,
             TileSources.MapStyle.SATELLITE to R.id.radioStyleSatellite,
             TileSources.MapStyle.HYBRID to R.id.radioStyleHybrid

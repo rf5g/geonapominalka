@@ -11,6 +11,7 @@
     <string name="title_task_list">Менеджер задач</string>
     <string name="title_settings">Настройки</string>
     <string name="title_map_picker">Выбор точки на карте</string>
+    <string name="title_log">Консоль</string>
 
     <string name="cd_menu">Меню</string>
     <string name="cd_map_type">Тип карты</string>
@@ -63,7 +64,6 @@
     <string name="interval_1200s">20 минут</string>
 
     <string name="map_style_light">Обычная (светлая)</string>
-    <string name="map_style_detailed">Детальная (с номерами домов)</string>
     <string name="map_style_voyager">Цветная (Voyager)</string>
     <string name="map_style_satellite">Спутник</string>
     <string name="map_style_hybrid">Гибрид (спутник + подписи)</string>
@@ -74,11 +74,17 @@
     <string name="msg_location_required">Для работы приложения нужен доступ к геолокации</string>
     <string name="msg_address_not_found">Адрес не найден</string>
     <string name="msg_no_tasks">Нет задач</string>
+    <string name="msg_log_empty">Лог пуст. Записи появятся, когда заработает сервис геолокации.</string>
+    <string name="action_clear_log">Очистить лог</string>
 
     <string name="nav_task_manager">Менеджер задач</string>
     <string name="nav_settings">Настройки</string>
+    <string name="nav_log">Консоль</string>
     <string name="nav_exit">Выход</string>
     <string name="nav_force_close">Закрыть совсем</string>
     <string name="dialog_force_close_message">Приложение полностью закроется, сервис геолокации будет остановлен. Уведомления по активным задачам не придут, пока вы не откроете приложение снова. Продолжить?</string>
     <string name="dialog_force_close_message_no_tasks">Приложение и все его процессы будут полностью завершены. Продолжить?</string>
+    <string name="dialog_permissions_title">Нужны разрешения</string>
+    <string name="dialog_permissions_message">Чтобы приложение отслеживало ваши гео-напоминания и присылало уведомления вовремя (в том числе когда экран заблокирован или приложение свёрнуто), нужны разрешения на геолокацию (в том числе в фоне) и на показ уведомлений. Сейчас будут показаны системные запросы — подтвердите их.</string>
+    <string name="action_continue">Продолжить</string>
 </resources>
