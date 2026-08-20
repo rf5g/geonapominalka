@@ -20,6 +20,7 @@
     <string name="cd_my_location">Моё местоположение</string>
 
     <string name="hint_search_address">Поиск адреса…</string>
+    <string name="cache_size_label">Кэш: %.1f МБ</string>
     <string name="hint_name">Имя</string>
     <string name="hint_description">Описание</string>
     <string name="hint_radius">Радиус (м)</string>

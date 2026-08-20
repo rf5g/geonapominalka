@@ -41,11 +41,28 @@ class GeoApp : Application() {
     /**
      * OSMDroid требует явный User-Agent (иначе публичные тайл-сервера OSM банят запросы)
      * и путь для кэша тайлов. Ключ API не нужен — сервис полностью бесплатный.
+     *
+     * ВАЖНО: Configuration.getInstance() — синглтон на весь процесс, настраивается
+     * здесь и ТОЛЬКО здесь, один раз при старте приложения (до создания любой Activity).
+     * Повторный вызов .load(...) в каком-либо экране опасен: он перечитывает настройки
+     * из SharedPreferences и может откатить путь кэша обратно на дефолтный — тогда каждое
+     * пересоздание экрана (поворот экрана, возврат из другой Activity и т.д.) фактически
+     * "теряет" путь к уже накопленному кэшу тайлов, и снаружи это выглядит как "тайлы
+     * никогда не кешируются". Экраны с картой поэтому НЕ должны вызывать .load() сами.
      */
     private fun configureOsmdroid() {
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
         Configuration.getInstance().userAgentValue = packageName
-        Configuration.getInstance().osmdroidTileCache = getExternalFilesDir("osmdroid_tiles") ?: cacheDir
+
+        val cacheDir = getExternalFilesDir("osmdroid_tiles") ?: cacheDir
+        Configuration.getInstance().osmdroidBasePath = cacheDir
+        Configuration.getInstance().osmdroidTileCache = cacheDir
+        // Явно фиксируем лимиты (по умолчанию в OSMDroid ~600МБ без TTL — тайлы живут,
+        // пока не превышен лимит по размеру, а не по времени)
+        Configuration.getInstance().tileFileSystemCacheMaxBytes = TILE_CACHE_MAX_BYTES
+        Configuration.getInstance().tileFileSystemCacheTrimBytes = TILE_CACHE_TRIM_BYTES
+
+        AppLogger.log("Cache", "Кэш тайлов: ${cacheDir.absolutePath}, лимит ${TILE_CACHE_MAX_BYTES / 1024 / 1024}МБ")
     }
 
     private fun createNotificationChannel() {
@@ -107,6 +124,9 @@ class GeoApp : Application() {
     }
 
     companion object {
+        private const val TILE_CACHE_MAX_BYTES = 300L * 1024 * 1024 // 300 МБ
+        private const val TILE_CACHE_TRIM_BYTES = 250L * 1024 * 1024 // до скольки чистим при превышении лимита
+
         fun from(context: Context): GeoApp = context.applicationContext as GeoApp
     }
 }

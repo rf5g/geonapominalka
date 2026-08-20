@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.example.geonapominalka.databinding.ActivityMapPickerBinding
 import com.example.geonapominalka.util.Constants
-import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -25,7 +24,6 @@ class MapPickerActivity : AppCompatActivity() {
     private var pickedMarker: Marker? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Configuration.getInstance().load(this, androidx.preference.PreferenceManager.getDefaultSharedPreferences(this))
         super.onCreate(savedInstanceState)
         binding = ActivityMapPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)

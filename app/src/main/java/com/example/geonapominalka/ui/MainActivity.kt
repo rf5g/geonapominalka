@@ -14,8 +14,10 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.geonapominalka.GeoApp
 import com.example.geonapominalka.R
 import com.example.geonapominalka.data.Reminder
@@ -25,9 +27,9 @@ import com.example.geonapominalka.util.TileSources
 import com.example.geonapominalka.util.NominatimGeocoder
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.util.GeoPoint
@@ -77,7 +79,6 @@ class MainActivity : AppCompatActivity() {
     ) { /* фон - опционально, приложение продолжит работать в активном режиме */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Configuration.getInstance().load(this, androidx.preference.PreferenceManager.getDefaultSharedPreferences(this))
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupToolbarAndDrawer()
         setupControls()
+        startCacheSizeMonitor()
 
         requestAllPermissionsIfNeeded()
     }
@@ -139,6 +141,30 @@ class MainActivity : AppCompatActivity() {
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
         return bitmap
+    }
+
+    /**
+     * Мелкая подпись с размером дискового кэша тайлов — только для отладки/визуального
+     * контроля (см. обсуждение с пользователем). Обновляется раз в 5 секунд, пока экран
+     * виден; ничего не делает с самим кэшем, только читает его текущий размер. Легко
+     * убрать целиком в будущем: эта функция, вызов из onCreate и cacheSizeLabel в layout.
+     */
+    private fun startCacheSizeMonitor() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                var tick = 0
+                while (true) {
+                    val sizeMb = com.example.geonapominalka.util.TileCacheInfo.currentSizeMb()
+                    binding.cacheSizeLabel.text = getString(R.string.cache_size_label, sizeMb)
+                    // В консоль пишем реже (раз в ~5 минут = каждый 60-й тик по 5 сек), чтобы не засорять лог
+                    if (tick % 60 == 0) {
+                        com.example.geonapominalka.util.AppLogger.log("Cache", "Размер кэша тайлов: %.1f МБ".format(sizeMb))
+                    }
+                    tick++
+                    delay(5000)
+                }
+            }
+        }
     }
 
     private fun setupToolbarAndDrawer() {
