@@ -60,10 +60,19 @@ class TaskListActivity : AppCompatActivity() {
 
     private fun confirmDelete(reminder: Reminder) {
         MaterialAlertDialogBuilder(this)
-            .setMessage(R.string.dialog_delete_message)
+            .setTitle(R.string.dialog_delete_message)
+            .setMessage(buildDeleteConfirmationMessage(reminder.name, reminder.description))
             .setPositiveButton(R.string.action_yes) { d, _ -> viewModel.delete(reminder); d.dismiss() }
             .setNegativeButton(R.string.action_no) { d, _ -> d.dismiss() }
             .show()
+    }
+
+    private fun buildDeleteConfirmationMessage(name: String, description: String?): String = buildString {
+        append(getString(R.string.dialog_delete_task_name_line, name))
+        if (!description.isNullOrBlank()) {
+            append("\n")
+            append(getString(R.string.dialog_delete_task_description_line, description))
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

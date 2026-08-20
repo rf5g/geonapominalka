@@ -21,4 +21,27 @@ object Constants {
 
     // Гистерезис при выходе из зоны, чтобы не дёргалось на границе радиуса
     const val EXIT_HYSTERESIS_METERS = 15
+
+    // --- Адаптивный алгоритм опроса местоположения ---
+    const val ADAPTIVE_MIN_INTERVAL_SEC = 15
+    const val ADAPTIVE_MAX_INTERVAL_SEC = 900 // 15 минут
+    const val ADAPTIVE_K = 6.0
+    // Защита от деления на ноль в rawInterval = d / (v * K): скорость никогда не считаем ниже этого порога
+    const val ADAPTIVE_MIN_VELOCITY_MPS = 0.1
+    // Порог "стоит/идёт очень медленно" — увеличиваем интервал в 1.5 раза
+    const val ADAPTIVE_SLOW_SPEED_THRESHOLD_MPS = 0.5
+    const val ADAPTIVE_SLOW_SPEED_MULTIPLIER = 1.5
+    const val ADAPTIVE_VEHICLE_DIVISOR = 2.0
+    // Пересоздаём LocationRequest только если новый интервал отличается от текущего более чем на столько
+    const val ADAPTIVE_INTERVAL_CHANGE_THRESHOLD = 0.2
+
+    // Типовые скорости (м/с) для режимов Activity Recognition — используются как оценка v,
+    // когда есть распознанная активность (это "предпочтительный способ" по ТЗ)
+    const val SPEED_STILL_MPS = 0.0
+    const val SPEED_WALKING_MPS = 1.4
+    const val SPEED_RUNNING_MPS = 3.0
+    const val SPEED_ON_BICYCLE_MPS = 5.0
+    const val SPEED_IN_VEHICLE_MPS = 15.0
+    // Если скорость определить невозможно вообще никак — средняя скорость пешехода
+    const val SPEED_DEFAULT_MPS = 1.4
 }

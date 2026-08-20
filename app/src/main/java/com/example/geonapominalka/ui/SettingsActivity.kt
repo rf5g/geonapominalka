@@ -1,11 +1,15 @@
 package com.example.geonapominalka.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.geonapominalka.GeoApp
 import com.example.geonapominalka.R
@@ -27,6 +31,18 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    // Повторный запрос ACTIVITY_RECOGNITION при включении адаптивного режима, если разрешение не выдано
+    private val requestActivityRecognition = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        lifecycleScope.launch { app.settingsRepository.setAdaptiveMode(true) }
+        if (!granted) {
+            android.widget.Toast.makeText(
+                this, R.string.msg_activity_recognition_denied, android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
@@ -35,6 +51,7 @@ class SettingsActivity : AppCompatActivity() {
         app = GeoApp.from(this)
 
         setupTheme()
+        setupAdaptiveModeAndInterval()
         setupInterval()
         setupMapStyle()
         setupVibration()
@@ -60,6 +77,54 @@ class SettingsActivity : AppCompatActivity() {
                 else -> "system"
             }
             lifecycleScope.launch { app.settingsRepository.setTheme(value) }
+        }
+    }
+
+    /**
+     * Адаптивный режим — главнее ручного интервала: список фиксированных значений
+     * остаётся видимым, но дизейблится, пока адаптивный режим включён (п.6 обсуждения).
+     */
+    private fun setupAdaptiveModeAndInterval() {
+        lifecycleScope.launch {
+            app.settingsRepository.adaptiveMode.collect { enabled ->
+                if (binding.switchAdaptiveMode.isChecked != enabled) binding.switchAdaptiveMode.isChecked = enabled
+                setIntervalGroupEnabled(!enabled)
+            }
+        }
+        binding.switchAdaptiveMode.setOnCheckedChangeListener { _, checked ->
+            if (checked && !hasActivityRecognitionPermission()) {
+                // Разрешение не выдано — объясняем ещё раз, зачем оно нужно, и запрашиваем повторно.
+                // Сама настройка включится в колбэке запроса разрешения (независимо от результата —
+                // адаптивный режим и без него работает, просто менее точно, по скорости из GPS).
+                binding.switchAdaptiveMode.isChecked = false
+                showActivityRecognitionRationale()
+            } else {
+                lifecycleScope.launch { app.settingsRepository.setAdaptiveMode(checked) }
+            }
+        }
+    }
+
+    private fun showActivityRecognitionRationale() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dialog_activity_recognition_title)
+            .setMessage(R.string.dialog_activity_recognition_message)
+            .setPositiveButton(R.string.action_continue) { dialog, _ ->
+                dialog.dismiss()
+                requestActivityRecognition.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+            .setNegativeButton(R.string.action_cancel) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun hasActivityRecognitionPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun setIntervalGroupEnabled(enabled: Boolean) {
+        binding.intervalGroup.alpha = if (enabled) 1.0f else 0.4f
+        for (i in 0 until binding.intervalGroup.childCount) {
+            binding.intervalGroup.getChildAt(i).isEnabled = enabled
         }
     }
 

@@ -27,6 +27,8 @@
     <string name="dialog_create_title">Новое напоминание</string>
     <string name="dialog_create_message">Координаты: %1$.5f, %2$.5f</string>
     <string name="dialog_delete_message">Удалить задачу?</string>
+    <string name="dialog_delete_task_name_line">Название: %1$s</string>
+    <string name="dialog_delete_task_description_line">Описание: %1$s</string>
     <string name="dialog_reset_message">Удалить все задачи? Действие необратимо.</string>
 
     <string name="action_remind_here">Напомнить здесь</string>
@@ -49,6 +51,11 @@
     <string name="label_show_done">Показывать выполненные</string>
     <string name="label_theme">Тема</string>
     <string name="label_interval">Частота проверки местоположения</string>
+    <string name="label_adaptive_mode">Адаптивный режим</string>
+    <string name="label_adaptive_mode_hint">Интервал подстраивается под расстояние до задачи и скорость движения. Список ниже — запасной фиксированный вариант, доступен при выключенном адаптивном режиме.</string>
+    <string name="dialog_activity_recognition_title">Нужно разрешение</string>
+    <string name="dialog_activity_recognition_message">Адаптивный режим точнее работает, если приложение знает, стоите вы на месте, идёте пешком или едете — для этого нужно разрешение на распознавание активности. Без него режим тоже будет работать, но менее точно (по скорости из GPS). Выдать разрешение?</string>
+    <string name="msg_activity_recognition_denied">Адаптивный режим включён, но без распознавания активности — точность оценки скорости ниже</string>
     <string name="label_vibration">Вибрация</string>
     <string name="label_map_style">Стиль карты</string>
 
@@ -85,6 +92,6 @@
     <string name="dialog_force_close_message">Приложение полностью закроется, сервис геолокации будет остановлен. Уведомления по активным задачам не придут, пока вы не откроете приложение снова. Продолжить?</string>
     <string name="dialog_force_close_message_no_tasks">Приложение и все его процессы будут полностью завершены. Продолжить?</string>
     <string name="dialog_permissions_title">Нужны разрешения</string>
-    <string name="dialog_permissions_message">Чтобы приложение отслеживало ваши гео-напоминания и присылало уведомления вовремя (в том числе когда экран заблокирован или приложение свёрнуто), нужны разрешения на геолокацию (в том числе в фоне) и на показ уведомлений. Сейчас будут показаны системные запросы — подтвердите их.</string>
+    <string name="dialog_permissions_message">Чтобы приложение отслеживало ваши гео-напоминания и присылало уведомления вовремя (в том числе когда экран заблокирован или приложение свёрнуто), нужны разрешения на геолокацию (в том числе в фоне), на показ уведомлений и на распознавание активности (для адаптивной экономии батареи — приложение реже опрашивает GPS, когда вы стоите на месте, и чаще — когда двигаетесь). Сейчас будут показаны системные запросы — подтвердите их.</string>
     <string name="action_continue">Продолжить</string>
 </resources>

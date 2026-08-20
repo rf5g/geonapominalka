@@ -99,11 +99,24 @@ class TaskEditActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete() {
+        val name = binding.nameField.text?.toString()?.trim()?.ifBlank { null }
+            ?: viewModel.reminder.value?.name.orEmpty()
+        val description = binding.descriptionField.text?.toString()?.trim()
+            ?: viewModel.reminder.value?.description
         MaterialAlertDialogBuilder(this)
-            .setMessage(R.string.dialog_delete_message)
+            .setTitle(R.string.dialog_delete_message)
+            .setMessage(buildDeleteConfirmationMessage(name, description))
             .setPositiveButton(R.string.action_yes) { d, _ -> viewModel.delete(); d.dismiss() }
             .setNegativeButton(R.string.action_no) { d, _ -> d.dismiss() }
             .show()
+    }
+
+    private fun buildDeleteConfirmationMessage(name: String, description: String?): String = buildString {
+        append(getString(R.string.dialog_delete_task_name_line, name))
+        if (!description.isNullOrBlank()) {
+            append("\n")
+            append(getString(R.string.dialog_delete_task_description_line, description))
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

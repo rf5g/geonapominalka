@@ -1,24 +1,33 @@
 package com.example.geonapominalka.service
 
+import android.Manifest
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.Location
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.geonapominalka.GeoApp
 import com.example.geonapominalka.R
 import com.example.geonapominalka.data.Reminder
 import com.example.geonapominalka.receiver.NotificationActionReceiver
 import com.example.geonapominalka.ui.MainActivity
+import com.example.geonapominalka.util.AdaptiveIntervalCalculator
+import com.example.geonapominalka.util.AppLogger
 import com.example.geonapominalka.util.Constants
 import com.example.geonapominalka.util.LocationUtils
-import com.example.geonapominalka.util.AppLogger
+import com.example.geonapominalka.util.MotionState
 import com.google.android.gms.location.*
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 
 /**
@@ -27,30 +36,118 @@ import kotlinx.coroutines.flow.first
  * (см. п.1.5, 1.6, 3 ТЗ). Сервис запускается/останавливается из GeoApp
  * в зависимости от количества активных задач, поэтому сам он не принимает
  * решения "нужен ли я" — только выполняет свою работу, пока жив.
+ *
+ * Интервал опроса — либо ручной (из настроек, применяется "живьём" при изменении
+ * пользователем без перезапуска сервиса), либо адаптивный (формула
+ * d/(v*K) с поправками, см. AdaptiveIntervalCalculator) — выбор между ними тоже
+ * читается из настроек в реальном времени.
  */
 class LocationForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var fusedClient: FusedLocationProviderClient
+    private lateinit var activityRecognitionClient: ActivityRecognitionClient
     private var locationCallback: LocationCallback? = null
 
+    private var currentAppliedIntervalSeconds: Int = 60
+    private var adaptiveModeEnabled = false
+    private var activityTransitionsRegistered = false
+    private var settingsObserverStarted = false
+
     private val app: GeoApp by lazy { GeoApp.from(this) }
+
+    private val activityTransitionPendingIntent: PendingIntent by lazy {
+        val intent = Intent(this, ActivityTransitionReceiver::class.java)
+        PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+    }
 
     override fun onCreate() {
         super.onCreate()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        activityRecognitionClient = ActivityRecognition.getClient(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundWithNotification()
-        serviceScope.launch {
-            val intervalSeconds = app.settingsRepository.currentIntervalSeconds()
-            AppLogger.log("Location", "Сервис запущен, интервал опроса: $intervalSeconds сек")
-            startLocationUpdates(intervalSeconds)
+
+        if (!settingsObserverStarted) {
+            settingsObserverStarted = true
+            observeSettings()
+            observeMotionForInstantTrigger()
         }
+
+        if (locationCallback == null) {
+            serviceScope.launch {
+                val manual = app.settingsRepository.currentIntervalSeconds()
+                val adaptive = app.settingsRepository.currentAdaptiveMode()
+                adaptiveModeEnabled = adaptive
+                AppLogger.log(
+                    "Location",
+                    "Сервис запущен. Режим: " + if (adaptive) "адаптивный" else "ручной, $manual сек"
+                )
+                // Стартуем с ручного значения как с "бутстрапа" — если включён адаптивный режим,
+                // интервал пересчитается сразу после первого полученного местоположения.
+                startLocationUpdates(manual)
+                if (adaptive) registerActivityTransitionsIfPermitted()
+            }
+        }
+
         // START_STICKY: система пересоздаст сервис, если он был убит,
         // пока есть активные задачи (GeoApp снова его запустит при необходимости).
         return START_STICKY
+    }
+
+    /** Следим за настройками "живьём": ручной интервал и переключатель адаптивного режима. */
+    private fun observeSettings() {
+        serviceScope.launch {
+            app.settingsRepository.adaptiveMode
+                .combine(app.settingsRepository.intervalSeconds) { adaptive, manual -> adaptive to manual }
+                .collectLatest { (adaptive, manual) ->
+                    val modeChanged = adaptive != adaptiveModeEnabled
+                    adaptiveModeEnabled = adaptive
+
+                    if (!adaptive) {
+                        if (modeChanged) {
+                            AppLogger.log("Location", "Адаптивный режим выключен, интервал: $manual сек")
+                            unregisterActivityTransitions()
+                            restartLocationUpdates(manual)
+                        } else if (manual != currentAppliedIntervalSeconds) {
+                            // Правка из п.6 обсуждения: интервал, изменённый пользователем вручную,
+                            // применяется сразу ко всем активным задачам без перезапуска сервиса.
+                            AppLogger.log("Location", "Интервал изменён пользователем: $currentAppliedIntervalSeconds сек → $manual сек")
+                            restartLocationUpdates(manual)
+                        }
+                    } else if (modeChanged) {
+                        AppLogger.log("Location", "Адаптивный режим включён")
+                        registerActivityTransitionsIfPermitted()
+                    }
+                }
+        }
+    }
+
+    /** Мгновенный триггер: переход из состояния "стоит" в любое движение -> внеочередной опрос местоположения. */
+    private fun observeMotionForInstantTrigger() {
+        serviceScope.launch {
+            var previousMoving: Boolean? = null
+            MotionState.currentActivityType.collectLatest { type ->
+                if (type == null) return@collectLatest
+                val moving = AdaptiveIntervalCalculator.isMoving(type)
+                if (adaptiveModeEnabled && previousMoving == false && moving) {
+                    AppLogger.log("Motion", "Начало движения — внеочередной запрос местоположения")
+                    requestSingleLocationUpdate()
+                }
+                previousMoving = moving
+            }
+        }
+    }
+
+    private fun requestSingleLocationUpdate() {
+        try {
+            fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+                .addOnSuccessListener { location -> if (location != null) handleNewLocation(location) }
+        } catch (e: SecurityException) {
+            // Разрешение отсутствует — тихо игнорируем, штатный опрос всё равно продолжит работать (или нет — см. startLocationUpdates)
+        }
     }
 
     private fun startForegroundWithNotification() {
@@ -73,6 +170,8 @@ class LocationForegroundService : Service() {
     }
 
     private fun startLocationUpdates(intervalSeconds: Int) {
+        currentAppliedIntervalSeconds = intervalSeconds
+
         // Для длинных интервалов используем режим экономии батареи (п.1.6 ТЗ)
         val priority = if (intervalSeconds >= 60) {
             Priority.PRIORITY_BALANCED_POWER_ACCURACY
@@ -88,13 +187,7 @@ class LocationForegroundService : Service() {
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val location = result.lastLocation ?: return
-                AppLogger.log(
-                    "Location",
-                    "Получены координаты: %.5f, %.5f (точность %.0fм)".format(
-                        location.latitude, location.longitude, location.accuracy
-                    )
-                )
-                serviceScope.launch { checkGeofences(location.latitude, location.longitude) }
+                handleNewLocation(location)
             }
         }
         locationCallback = callback
@@ -105,6 +198,115 @@ class LocationForegroundService : Service() {
             // Разрешение на геолокацию отсутствует — сервис не может работать.
             stopSelf()
         }
+    }
+
+    /** Пересоздаёт LocationRequest с новым интервалом (ручное изменение или пересчёт адаптивного). */
+    private fun restartLocationUpdates(newIntervalSeconds: Int) {
+        locationCallback?.let { fusedClient.removeLocationUpdates(it) }
+        startLocationUpdates(newIntervalSeconds)
+    }
+
+    private fun handleNewLocation(location: Location) {
+        AppLogger.log(
+            "Location",
+            "Получены координаты: %.5f, %.5f (точность %.0fм)".format(
+                location.latitude, location.longitude, location.accuracy
+            )
+        )
+        serviceScope.launch {
+            if (adaptiveModeEnabled) recomputeAdaptiveInterval(location)
+            checkGeofences(location.latitude, location.longitude)
+        }
+    }
+
+    /** Пересчёт адаптивного интервала по формуле d/(v*K) с поправками — см. AdaptiveIntervalCalculator. */
+    private suspend fun recomputeAdaptiveInterval(location: Location) {
+        val activeReminders = app.reminderRepository.getActiveOnce()
+        if (activeReminders.isEmpty()) return
+
+        var nearestDistance = Double.MAX_VALUE
+        var nearestRadius = 200
+        for (reminder in activeReminders) {
+            val distance = LocationUtils.distanceMeters(
+                location.latitude, location.longitude, reminder.latitude, reminder.longitude
+            ).toDouble()
+            if (distance < nearestDistance) {
+                nearestDistance = distance
+                nearestRadius = reminder.radius
+            }
+        }
+
+        val activityType = MotionState.currentActivityType.value
+        val velocity = resolveVelocity(location, activityType)
+        val newInterval = AdaptiveIntervalCalculator.computeIntervalSeconds(
+            nearestDistance, nearestRadius, velocity, activityType
+        )
+
+        if (AdaptiveIntervalCalculator.shouldUpdate(currentAppliedIntervalSeconds, newInterval)) {
+            AppLogger.log(
+                "Adaptive",
+                "d=${nearestDistance.toInt()}м, v=%.1f м/с, активность=%s → интервал %dс (было %dс)".format(
+                    velocity, activityName(activityType), newInterval, currentAppliedIntervalSeconds
+                )
+            )
+            restartLocationUpdates(newInterval)
+        }
+    }
+
+    /**
+     * Оценка скорости: предпочтительно по типу активности (типовая скорость для режима —
+     * см. Constants.SPEED_*), запасной способ — скорость из самого GPS-фикса (location.speed),
+     * если она есть; иначе средняя скорость пешехода.
+     */
+    private fun resolveVelocity(location: Location, activityType: Int?): Double = when {
+        activityType != null -> AdaptiveIntervalCalculator.speedForActivity(activityType)
+        location.hasSpeed() && location.speed > 0f -> location.speed.toDouble()
+        else -> Constants.SPEED_DEFAULT_MPS
+    }
+
+    private fun activityName(type: Int?): String = when (type) {
+        DetectedActivity.STILL -> "стоит"
+        DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> "пешком"
+        DetectedActivity.RUNNING -> "бег"
+        DetectedActivity.ON_BICYCLE -> "велосипед"
+        DetectedActivity.IN_VEHICLE -> "транспорт"
+        else -> "неизв."
+    }
+
+    private fun registerActivityTransitionsIfPermitted() {
+        if (activityTransitionsRegistered) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
+            AppLogger.log("Motion", "Нет разрешения на распознавание активности — скорость оценивается по GPS")
+            return
+        }
+        val transitions = listOf(
+            DetectedActivity.STILL, DetectedActivity.WALKING, DetectedActivity.RUNNING,
+            DetectedActivity.ON_BICYCLE, DetectedActivity.IN_VEHICLE
+        ).map {
+            ActivityTransition.Builder()
+                .setActivityType(it)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build()
+        }
+        val request = ActivityTransitionRequest(transitions)
+        try {
+            activityRecognitionClient.requestActivityTransitionUpdates(request, activityTransitionPendingIntent)
+                .addOnSuccessListener {
+                    activityTransitionsRegistered = true
+                    AppLogger.log("Motion", "Распознавание активности подключено")
+                }
+                .addOnFailureListener { e ->
+                    AppLogger.log("Motion", "Не удалось подключить распознавание активности: ${e.message}")
+                }
+        } catch (e: SecurityException) {
+            AppLogger.log("Motion", "Нет разрешения на распознавание активности — скорость оценивается по GPS")
+        }
+    }
+
+    private fun unregisterActivityTransitions() {
+        if (!activityTransitionsRegistered) return
+        activityRecognitionClient.removeActivityTransitionUpdates(activityTransitionPendingIntent)
+        activityTransitionsRegistered = false
     }
 
     /** Основная логика геозон: перебираем активные задачи, сравниваем расстояние с радиусом. */
@@ -208,6 +410,7 @@ class LocationForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         AppLogger.log("Location", "Сервис остановлен, опрос геолокации прекращён")
+        unregisterActivityTransitions()
         locationCallback?.let { fusedClient.removeLocationUpdates(it) }
         serviceScope.cancel()
     }
