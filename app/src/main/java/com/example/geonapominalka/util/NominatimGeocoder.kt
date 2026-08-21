@@ -28,9 +28,32 @@ import java.net.URLEncoder
 object NominatimGeocoder {
 
     private const val BASE_URL = "https://nominatim.openstreetmap.org/search"
+    private const val REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
     private const val USER_AGENT = "GeoNapominalka-Android-App"
 
     data class Result(val latitude: Double, val longitude: Double, val displayName: String)
+
+    /** Обратный геокодинг: координаты -> человекочитаемый адрес. Используется в диалоге
+     *  создания напоминания, чтобы показать не только координаты, но и ближайший адрес. */
+    suspend fun reverse(latitude: Double, longitude: Double): String? = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = "$REVERSE_URL?format=json&lat=$latitude&lon=$longitude&zoom=18&addressdetails=0"
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", USER_AGENT)
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+            val text = connection.inputStream.bufferedReader().use { it.readText() }
+            val obj = org.json.JSONObject(text)
+            obj.optString("display_name", "").ifBlank { null }
+        } catch (e: Exception) {
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
 
     suspend fun search(query: String, userLat: Double?, userLon: Double?): Result? =
         withContext(Dispatchers.IO) {

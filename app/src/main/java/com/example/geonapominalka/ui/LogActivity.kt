@@ -21,6 +21,11 @@ class LogActivity : AppCompatActivity() {
     private lateinit var adapter: LogAdapter
     private lateinit var layoutManager: LinearLayoutManager
 
+    // Пользователь мог сам проскроллить вверх, чтобы почитать более старые записи —
+    // в этом случае новые записи НЕ должны дёргать список вниз (иначе читать лог
+    // на лету невозможно). Автопрокрутка работает только если и так были у самого низа.
+    private var userIsNearBottom = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLogBinding.inflate(layoutInflater)
@@ -33,14 +38,24 @@ class LogActivity : AppCompatActivity() {
         binding.recyclerView.layoutManager = layoutManager
         binding.recyclerView.adapter = adapter
 
+        binding.recyclerView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+                val lastVisible = layoutManager.findLastVisibleItemPosition()
+                val itemCount = adapter.itemCount
+                // "Около низа" — последняя видимая позиция в пределах пары строк от конца списка
+                userIsNearBottom = itemCount == 0 || lastVisible >= itemCount - 2
+            }
+        })
+
         binding.fabClear.setOnClickListener { AppLogger.clear() }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 AppLogger.entries.collect { entries ->
+                    val wasNearBottom = userIsNearBottom
                     adapter.submitList(entries)
                     binding.emptyView.visibility = if (entries.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
-                    if (entries.isNotEmpty()) {
+                    if (entries.isNotEmpty() && wasNearBottom) {
                         binding.recyclerView.scrollToPosition(entries.size - 1)
                     }
                 }

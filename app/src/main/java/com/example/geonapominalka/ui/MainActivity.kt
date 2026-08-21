@@ -149,18 +149,20 @@ class MainActivity : AppCompatActivity() {
      * виден; ничего не делает с самим кэшем, только читает его текущий размер. Легко
      * убрать целиком в будущем: эта функция, вызов из onCreate и cacheSizeLabel в layout.
      */
+    /**
+     * Мелкая подпись с размером дискового кэша тайлов — только для отладки/визуального
+     * контроля (см. обсуждение с пользователем). Обновляется раз в 5 секунд, пока экран
+     * виден; ничего не делает с самим кэшем, только читает его текущий размер. В консоль
+     * (AppLogger) не пишет — там и так важнее геоданные, размер кэша туда не должен
+     * попадать регулярно, только сама метка на экране. Легко убрать целиком в будущем:
+     * эта функция, вызов из onCreate и cacheSizeLabel в layout.
+     */
     private fun startCacheSizeMonitor() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                var tick = 0
                 while (true) {
                     val sizeMb = com.example.geonapominalka.util.TileCacheInfo.currentSizeMb()
                     binding.cacheSizeLabel.text = getString(R.string.cache_size_label, sizeMb)
-                    // В консоль пишем реже (раз в ~5 минут = каждый 60-й тик по 5 сек), чтобы не засорять лог
-                    if (tick % 60 == 0) {
-                        com.example.geonapominalka.util.AppLogger.log("Cache", "Размер кэша тайлов: %.1f МБ".format(sizeMb))
-                    }
-                    tick++
                     delay(5000)
                 }
             }
@@ -315,21 +317,44 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-    /** п.1.2 ТЗ: долгое нажатие открывает диалог с кнопкой "Напомнить здесь". */
+    /**
+     * п.1.2 ТЗ: долгое нажатие открывает диалог с кнопкой "Напомнить здесь".
+     * Диалог показывается сразу с координатами (без задержки на сеть), адрес
+     * подгружается асинхронно через reverse-геокодинг и дописывается в текст диалога,
+     * когда придёт ответ. Если пользователь нажмёт "Напомнить здесь" уже после того,
+     * как адрес пришёл — он попадёт в поле "Описание" на следующем экране.
+     */
     private fun showCreateReminderDialog(point: GeoPoint) {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        var resolvedAddress: String? = null
+        val coordinatesLine = getString(R.string.dialog_create_message, point.latitude, point.longitude)
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.dialog_create_title)
-            .setMessage(getString(R.string.dialog_create_message, point.latitude, point.longitude))
-            .setPositiveButton(R.string.action_remind_here) { dialog, _ ->
-                dialog.dismiss()
+            .setMessage("$coordinatesLine\n${getString(R.string.msg_resolving_address)}")
+            .setPositiveButton(R.string.action_remind_here) { d, _ ->
+                d.dismiss()
                 val intent = Intent(this, TaskEditActivity::class.java).apply {
                     putExtra(Constants.EXTRA_INITIAL_LAT, point.latitude)
                     putExtra(Constants.EXTRA_INITIAL_LNG, point.longitude)
+                    resolvedAddress?.let { putExtra(Constants.EXTRA_INITIAL_ADDRESS, it) }
                 }
                 startActivity(intent)
             }
-            .setNegativeButton(R.string.action_cancel) { dialog, _ -> dialog.dismiss() }
-            .show()
+            .setNegativeButton(R.string.action_cancel) { d, _ -> d.dismiss() }
+            .create()
+        dialog.show()
+
+        val job = lifecycleScope.launch {
+            val address = try {
+                NominatimGeocoder.reverse(point.latitude, point.longitude)
+            } catch (e: Exception) {
+                null
+            }
+            if (!dialog.isShowing) return@launch
+            resolvedAddress = address
+            dialog.setMessage(if (address != null) "$coordinatesLine\n$address" else coordinatesLine)
+        }
+        dialog.setOnDismissListener { job.cancel() }
     }
 
     /** п.1.4 ТЗ: клик по маркеру -> подтверждение удаления. Показываем название и описание,

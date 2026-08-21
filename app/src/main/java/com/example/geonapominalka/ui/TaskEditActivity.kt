@@ -51,6 +51,11 @@ class TaskEditActivity : AppCompatActivity() {
             val lat = intent.getDoubleExtra(Constants.EXTRA_INITIAL_LAT, 0.0)
             val lng = intent.getDoubleExtra(Constants.EXTRA_INITIAL_LNG, 0.0)
             viewModel.setInitialCoordinates(lat, lng)
+            // Адрес, найденный reverse-геокодингом в диалоге долгого тапа (если успел прийти
+            // до нажатия "Напомнить здесь") — подставляем как стартовое описание задачи.
+            intent.getStringExtra(Constants.EXTRA_INITIAL_ADDRESS)?.let { address ->
+                binding.descriptionField.setText(address)
+            }
         }
 
         viewModel.reminder.observe(this) { reminder ->

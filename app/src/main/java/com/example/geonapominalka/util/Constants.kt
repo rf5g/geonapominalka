@@ -15,6 +15,7 @@ object Constants {
     const val EXTRA_EDIT_REMINDER_ID = "extra_edit_reminder_id"
     const val EXTRA_INITIAL_LAT = "extra_initial_lat"
     const val EXTRA_INITIAL_LNG = "extra_initial_lng"
+    const val EXTRA_INITIAL_ADDRESS = "extra_initial_address"
 
     // Анти-спам: не повторять уведомление чаще, чем раз в 10 минут для одной задачи
     const val NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000L

@@ -27,6 +27,7 @@
 
     <string name="dialog_create_title">Новое напоминание</string>
     <string name="dialog_create_message">Координаты: %1$.5f, %2$.5f</string>
+    <string name="msg_resolving_address">Определяю адрес…</string>
     <string name="dialog_delete_message">Удалить задачу?</string>
     <string name="dialog_delete_task_name_line">Название: %1$s</string>
     <string name="dialog_delete_task_description_line">Описание: %1$s</string>

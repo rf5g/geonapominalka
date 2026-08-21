@@ -61,8 +61,6 @@ class GeoApp : Application() {
         // пока не превышен лимит по размеру, а не по времени)
         Configuration.getInstance().tileFileSystemCacheMaxBytes = TILE_CACHE_MAX_BYTES
         Configuration.getInstance().tileFileSystemCacheTrimBytes = TILE_CACHE_TRIM_BYTES
-
-        AppLogger.log("Cache", "Кэш тайлов: ${cacheDir.absolutePath}, лимит ${TILE_CACHE_MAX_BYTES / 1024 / 1024}МБ")
     }
 
     private fun createNotificationChannel() {
