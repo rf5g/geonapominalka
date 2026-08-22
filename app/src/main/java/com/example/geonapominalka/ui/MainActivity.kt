@@ -467,28 +467,32 @@ class MainActivity : AppCompatActivity() {
             PackageManager.PERMISSION_GRANTED
 
     /**
-     * При первом запуске сразу объясняем, зачем нужны все разрешения, и запрашиваем их
-     * одним заходом (геолокация + уведомления + распознавание активности для адаптивного
-     * опроса — сразу; фоновая геолокация — следующим системным диалогом сразу после, так
-     * требует Android на 10+ — одновременно её запросить нельзя). При повторных запусках,
-     * если всё уже выдано, ничего не спрашиваем.
+     * При первом запуске (и при каждом последующем, пока не выдано) объясняем, зачем нужны
+     * разрешения, и запрашиваем их по шагам, как требует Android 10+:
+     * 1) геолокация переднего плана + уведомления + распознавание активности — одним заходом;
+     * 2) фоновая геолокация — ОТДЕЛЬНЫМ системным запросом сразу после (одновременно с
+     *    первым запросить нельзя — система молча проигнорирует). Перед этим шагом показываем
+     *    отдельный диалог с объяснением, почему это разрешение обязательно, а не опционально:
+     *    без него foreground-сервис на Android 14+ перестаёт получать координаты, как только
+     *    пользователь уходит с экрана приложения — то есть уведомления о задачах просто
+     *    не придут.
      */
     private fun requestAllPermissionsIfNeeded() {
-        val allGranted = hasFineLocationPermission() && hasBackgroundLocationPermission() &&
-            hasNotificationPermission() && hasActivityRecognitionPermission()
-        if (allGranted) {
+        val foregroundGranted = hasFineLocationPermission() && hasNotificationPermission() && hasActivityRecognitionPermission()
+        if (!foregroundGranted) {
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dialog_permissions_title)
+                .setMessage(R.string.dialog_permissions_message)
+                .setCancelable(false)
+                .setPositiveButton(R.string.action_continue) { dialog, _ ->
+                    dialog.dismiss()
+                    requestRuntimePermissions()
+                }
+                .show()
+        } else {
             enableMyLocationLayer()
-            return
+            requestBackgroundPermissionIfNeeded()
         }
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.dialog_permissions_title)
-            .setMessage(R.string.dialog_permissions_message)
-            .setCancelable(false)
-            .setPositiveButton(R.string.action_continue) { dialog, _ ->
-                dialog.dismiss()
-                requestRuntimePermissions()
-            }
-            .show()
     }
 
     private fun requestRuntimePermissions() {
@@ -505,10 +509,35 @@ class MainActivity : AppCompatActivity() {
         requestPermissions.launch(permissions.toTypedArray())
     }
 
+    /**
+     * Отдельный диалог именно про "Разрешить в любом режиме" — показываем на каждом запуске,
+     * пока разрешение не выдано (сознательно, по просьбе — это критично для работы приложения,
+     * не косметика). Кнопка "Открыть настройки" — подстраховка для устройств, где системный
+     * диалог не предлагает нужный вариант напрямую (так бывает на некоторых прошивках).
+     */
     private fun requestBackgroundPermissionIfNeeded() {
-        if (!hasBackgroundLocationPermission()) {
-            requestBackgroundPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        if (hasBackgroundLocationPermission()) return
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dialog_background_location_title)
+            .setMessage(R.string.dialog_background_location_message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.action_grant) { dialog, _ ->
+                dialog.dismiss()
+                requestBackgroundPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNeutralButton(R.string.action_open_settings) { dialog, _ ->
+                dialog.dismiss()
+                openAppSettings()
+            }
+            .setNegativeButton(R.string.action_not_now) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.fromParts("package", packageName, null)
         }
+        startActivity(intent)
     }
 
     override fun onResume() {

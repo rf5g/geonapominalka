@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+// Имя выходного файла APK/AAB (например app/build/outputs/apk/debug/napomniTut-debug.apk),
+// не влияет на applicationId/namespace — это только имя файла на диске.
+base {
+    archivesName.set("napomniTut")
+}
+
 android {
     namespace = "com.example.geonapominalka"
     compileSdk = 34
